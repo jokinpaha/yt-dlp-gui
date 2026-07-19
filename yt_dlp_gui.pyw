@@ -104,7 +104,7 @@ class App:
         folder_frame = tk.Frame(main_frame)
         folder_frame.pack(fill=tk.X, pady=(0, 5))
         
-        folder_label = tk.Label(folder_frame, text="Destination folder:")
+        folder_label = tk.Label(folder_frame, text="Folder:")
         folder_label.pack(side=tk.LEFT, padx=(0, 5))
         
         self.folder_entry = tk.Entry(folder_frame, textvariable=self.download_path_var, font=("Helvetica", 10))
@@ -134,6 +134,9 @@ class App:
         # Queue and current download management buttons
         self.clear_queue_button = tk.Button(queue_header_frame, text="Clear Queue", command=self.clear_queue, font=("Helvetica", 9), fg="darkred")
         self.clear_queue_button.pack(side=tk.RIGHT, padx=2)
+
+        self.import_csv_button = tk.Button(queue_header_frame, text="Import CSV", command=self.import_csv, font=("Helvetica", 9), fg="darkblue")
+        self.import_csv_button.pack(side=tk.RIGHT, padx=2)
         
         self.cancel_current_button = tk.Button(queue_header_frame, text="Cancel Current Download", command=self.cancel_current_download, font=("Helvetica", 9, "bold"), fg="red", state=tk.DISABLED)
         self.cancel_current_button.pack(side=tk.RIGHT, padx=2)
@@ -256,6 +259,46 @@ class App:
         self.queue_listbox.insert(tk.END, url)
         self.console_write(f"Added to queue: {url}\n")
         self.process_queue()
+
+    def import_csv(self):
+        """Allows users to select a CSV file and imports all valid URLs into the queue."""
+        file_path = filedialog.askopenfilename(
+            title="Select CSV File",
+            filetypes=[("CSV Files", "*.csv"), ("Text Files", "*.txt"), ("All Files", "*.*")]
+        )
+        if not file_path:
+            return
+
+        if not os.path.exists(LOCAL_EXE_PATH):
+            messagebox.showwarning("File Missing", "yt-dlp.exe not found! Please download it by clicking the 'Download' button below.")
+            return
+
+        if self.update_available:
+            if messagebox.askyesno("Update Available", "A new version is available. Do you want to update the program before importing?"):
+                self.start_update()
+                return
+
+        try:
+            urls_added = 0
+            # Matches strings starting with http:// or https:// up to the first space, comma, semicolon or quote
+            url_pattern = re.compile(r'(https?://[^\s,;"]+)')
+            
+            with open(file_path, mode='r', encoding='utf-8', errors='ignore') as f:
+                for line in f:
+                    matches = url_pattern.findall(line)
+                    for url in matches:
+                        clean_url = url.strip()
+                        self.queue_listbox.insert(tk.END, clean_url)
+                        self.console_write(f"Added from file: {clean_url}\n")
+                        urls_added += 1
+            
+            if urls_added > 0:
+                self.console_write(f"Successfully imported {urls_added} URLs from file.\n")
+                self.process_queue()
+            else:
+                messagebox.showinfo("Import Info", "No valid HTTP/HTTPS URLs found in the selected file.")
+        except Exception as e:
+            messagebox.showerror("Import Error", f"Failed to read file:\n{e}")
 
     def process_queue(self):
         if self.is_downloading:
